@@ -50,7 +50,7 @@ let logs = false;
 let lastTextSnapshot = textElt.innerText;
 let targetPartition: Partition;
 let targetXMLTextNode: Text;
-let mostRecentKey
+
 // Can we successfully map between the de-tagged user text and the XML tree ?
 
 // REGIONAL CLICK TEST
@@ -71,7 +71,7 @@ let mostRecentKey
 // });
 textElt.addEventListener("keydown", (e) => {
   console.log(e);
-  mostRecentKey = e.code
+  (<any>window).mostRecentKey = e.code;
   const antecipation = antecipateMutation();
   if (antecipation) {
     [targetPartition, targetXMLTextNode] = antecipation;
@@ -103,13 +103,7 @@ function antecipateMutation(): [Partition, Text] | undefined {
       ssmlDoc.firstElementChild! as Element
     );
     const partition = getPartition(rangeMap, selectableTextIdx);
-    // console.log("partitionKey", partitionKey);
     const textNodeInXMLDoc = rangeMap[partition.partitionKey];
-    // console.log("textNodeInXMLDoc");
-    // console.dir(textNodeInXMLDoc);
-
-    // targetPartition = partition;
-    // targetXMLTextNode = textNodeInXMLDoc;
     return [partition, textNodeInXMLDoc];
   } catch (error) {
     console.error(error);
@@ -150,29 +144,30 @@ function getSelectableTextIdx(charDelt = 0) {
 
 function checkParity() {
   console.log(
-    "parity: " +
-      (textElt.innerText === ssmlDoc.firstElementChild?.textContent)
+    "parity: " + (textElt.innerText === ssmlDoc.firstElementChild?.textContent)
   );
 }
 
 // Can we map mutations of text between the de-tagged user text and the XML tree?
 
 function mutationCallback(mutationList: Array<MutationRecord>) {
-  // if (mutation.type !== "characterData") return;
   try {
     const mutation = mutationList[0];
     if (!mutation) throw new Error("undefined mutation");
-    // const rootPara = document.querySelector(
-    //   "#fresh-plain-text"
-    // )! as HTMLParagraphElement;
     const newAggText = textElt.innerText;
     if (!newAggText) throw new Error("unable to find mutating text");
 
     const charDelt = newAggText!.length - lastTextSnapshot.length;
-    const newTextNodeValue = newAggText!.substring(
-      targetPartition.partitionStart,
-      targetPartition.partitionEnd + charDelt + 1
-    );
+    let newTextNodeValue;
+    if (targetPartition.isFinal) {
+      newTextNodeValue = newAggText!.substring(targetPartition.partitionStart);
+    } else {
+      newTextNodeValue = newAggText!.substring(
+        targetPartition.partitionStart,
+        targetPartition.partitionEnd + charDelt + 1
+      );
+    }
+
     targetXMLTextNode.textContent = newTextNodeValue;
     lastTextSnapshot = newAggText;
 

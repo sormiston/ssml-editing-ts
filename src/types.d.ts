@@ -24,4 +24,5 @@ type Partition = {
   partitionKey: string;
   partitionStart: number;
   partitionEnd: number;
+  isFinal?: boolean
 };

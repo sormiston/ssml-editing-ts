@@ -57,25 +57,25 @@ export function correlationEngine(
           });
           break;
         } else {
-          if (
-            /\s/.test(c) &&
-            fromIdx >= currTNode.textContent.length &&
-            targetTNodes[1].textContent &&
-            !targetTNodes[1].textContent
-              .replace(/[\s\n\r\t]+/, " ")
-              .startsWith(c)
-          ) {
-            // some whitespace will be produced by the browser rendered innerText, but will not actually exist as data in any descendant text node.  Thus, we'll reach this code block to dequeue the text node, but what we really want is to move on to the next word character.  Such "phantom spaces" should not break the algorithm.  Skip them.
-            // console.log('phantom space!', `${c.charCodeAt(0)} at idx ${i}`, currTNode)
-            returnData.correlationMap.push({
-              tnode: currTNode,
-              idx: localIdx,
-              c: "phantom space",
-              masterIdx: i,
-            });
-            break;
-          }
-          // must leave an unconditioned case to avoid infinite loop
+          // if (
+          //   /\s/.test(c) &&
+          //   fromIdx >= currTNode.textContent.length &&
+          //   targetTNodes[1].textContent &&
+          //   !targetTNodes[1].textContent
+          //     .replace(/[\s\n\r\t]+/, " ")
+          //     .startsWith(c)
+          // ) {
+          //   // some whitespace will be produced by the browser rendered innerText, but will not actually exist as data in any descendant text node.  Thus, we'll reach this code block to dequeue the text node, but what we really want is to move on to the next word character.  Such "phantom spaces" should not break the algorithm.  Skip them.
+          //   // console.log('phantom space!', `${c.charCodeAt(0)} at idx ${i}`, currTNode)
+          //   returnData.correlationMap.push({
+          //     tnode: currTNode,
+          //     idx: localIdx,
+          //     c: "phantom space",
+          //     masterIdx: i,
+          //   });
+          //   break;
+          // }
+        
           targetTNodes.shift();
           fromIdx = 0;
         }
@@ -174,7 +174,8 @@ export function getPartition(rangeMap: RangeMap, selectableTextIdx: number) {
       partitionKey: lastKey,
       partitionStart: parseInt(lastKey.match(regex)!.groups!.start),
       partitionEnd: parseInt(lastKey.match(regex)!.groups!.end),
-    };
+      isFinal: true
+    } as Partition;
   }
 }
 

@@ -1,12 +1,11 @@
-// INIT
-// import vkbeautify from "./node_modules/vkbeautify/index.js";
+
 import {
   correlationEngine,
   getRangeMap,
   getPartition,
   organizeMap,
   checkMapFidelity,
-} from "./correlationEngine";
+} from "./correlationEngine.js";
 
 function scrubTags(str: string) {
   str = str.toString();
@@ -33,14 +32,15 @@ const parser = new DOMParser();
 const serializer = new XMLSerializer();
 
 // SSML DOC is primary state object that must sync with user text manipulation
-let ssmlDoc = parser.parseFromString(
+let ssmlDoc: Document = parser.parseFromString(
   OPEN_SPEAK_TAG + ssml + CLOSING_SPEAK_TAG,
   "text/xml"
 );
 
 // READOUT shows how SSML doc will serialize
 function printXMLString() {
-  let ssmlDocOutput = serializer.serializeToString(ssmlDoc);
+  let ssmlDocOutput =
+    serializer.serializeToString(ssmlDoc);
   // let beautifiedXML = vkbeautify.xml(ssmlDocOutput);
   outputElt.innerText = ssmlDocOutput;
 }
@@ -50,14 +50,18 @@ console.dir(ssmlDoc);
 // Some important LOCAL MEMORY INITS
 let logs = false;
 let lastTextSnapshot = textElt.textContent;
-let targetPartition;
-let targetXMLTextNode;
+let targetPartition: Partition;
+let targetXMLTextNode: Text;
 // Can we successfully map between the de-tagged user text and the XML tree ?
 
 // REGIONAL CLICK TEST
 textElt.addEventListener("click", (e) => {
   const selectableTextIdx = getSelectableTextIdx();
-  const rangeMap = getRangeMap(lastTextSnapshot, ssmlDoc.firstElementChild);
+  if (!selectableTextIdx) return;
+  const rangeMap = getRangeMap(
+    lastTextSnapshot,
+    ssmlDoc.firstElementChild! as Element
+  );
   const { partitionKey, partitionStart, partitionEnd } = getPartition(
     rangeMap,
     selectableTextIdx
@@ -74,30 +78,46 @@ textElt.addEventListener("keydown", (e) => {
 function antecipateMutation() {
   // get cursor position before key input
   const sel = window.getSelection();
-  let { selectableTextIdx } = correlationEngine(textElt.textContent, textElt, {
-    tnode: sel.anchorNode,
-    idx: sel.anchorOffset,
-  });
+  if (!sel?.anchorNode) return;
+  let { selectableTextIdx } = correlationEngine(
+    textElt.textContent || "",
+    textElt,
+    {
+      tnode: sel.anchorNode as Text,
+      idx: sel.anchorOffset,
+    }
+  );
 
-  selectableTextIdx = selectableTextIdx || textElt.textContent.length - 1;
-  // get corresponding tnode in xml tree
-  const rangeMap = getRangeMap(textElt.textContent, ssmlDoc.firstElementChild);
-  const partition = getPartition(rangeMap, selectableTextIdx);
-  // console.log("partitionKey", partitionKey);
-  const textNodeInXMLDoc = rangeMap[partition.partitionKey];
-  // console.log("textNodeInXMLDoc");
-  // console.dir(textNodeInXMLDoc);
+  try {
+    if (textElt.textContent === null) {
+      throw new Error("No text content");
+    }
+    selectableTextIdx = selectableTextIdx || textElt.textContent.length - 1;
+    // get corresponding tnode in xml tree
+    const rangeMap = getRangeMap(
+      textElt.textContent,
+      ssmlDoc.firstElementChild! as Element
+    );
+    const partition = getPartition(rangeMap, selectableTextIdx);
+    // console.log("partitionKey", partitionKey);
+    const textNodeInXMLDoc = rangeMap[partition.partitionKey];
+    // console.log("textNodeInXMLDoc");
+    // console.dir(textNodeInXMLDoc);
 
-  targetPartition = partition;
-  targetXMLTextNode = textNodeInXMLDoc;
+    targetPartition = partition;
+    targetXMLTextNode = textNodeInXMLDoc;
+  } catch (error) {
+    console.error(error);
+  }
 }
 // **************************
 
 // ***************************
 function getSelectableTextIdx(charDelt = 0) {
   const sel = window.getSelection();
+  if (!sel?.anchorNode) return;
   const { selectableTextIdx } = correlationEngine(lastTextSnapshot, textElt, {
-    tnode: sel.anchorNode,
+    tnode: sel.anchorNode as Text,
     idx: sel.anchorOffset + charDelt * -1,
   });
   return selectableTextIdx || lastTextSnapshot.length - 1;
@@ -124,19 +144,22 @@ function getSelectableTextIdx(charDelt = 0) {
 
 function checkParity() {
   console.log(
-    "parity: " + (textElt.textContent === ssmlDoc.firstElementChild.textContent)
+    "parity: " + (textElt.textContent === ssmlDoc.firstElementChild?.textContent)
   );
 }
 
 // Can we map mutations of text between the de-tagged user text and the XML tree?
 
-function mutationCallback(mutationList, observer) {
-  const mutation = mutationList[0];
-  if (mutation.type !== "characterData") return;
-
-  const newAggText = mutation.target.parentElement.innerText;
-  const charDelt = newAggText.length - lastTextSnapshot.length;
-  const newTextNodeValue = newAggText.substring(
+function mutationCallback(mutationList: Array<MutationRecord>) {
+  // if (mutation.type !== "characterData") return;
+  try {
+    const mutation = mutationList[0];
+    if (!mutation) throw new Error("undefined mutation")
+    const newAggText = mutation?.target?.parentElement?.innerText;
+    if (!newAggText) throw new Error("unable to find mutating text")
+    
+  const charDelt = newAggText!.length - lastTextSnapshot.length;
+  const newTextNodeValue = newAggText!.substring(
     targetPartition.partitionStart,
     targetPartition.partitionEnd + charDelt + 1
   );
@@ -145,6 +168,10 @@ function mutationCallback(mutationList, observer) {
 
   printXMLString();
   checkParity();
+  } catch (error) {
+    console.error(error)
+  }
+
 }
 const observer = new MutationObserver(mutationCallback);
 observer.observe(textElt, {

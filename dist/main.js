@@ -1,6 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-const correlationEngine_1 = require("./correlationEngine");
+import { correlationEngine, getRangeMap, getPartition, } from "./correlationEngine.js";
 function scrubTags(str) {
     str = str.toString();
     return str.replace(/<[^>]*>/g, "");
@@ -27,8 +25,10 @@ let targetPartition;
 let targetXMLTextNode;
 textElt.addEventListener("click", (e) => {
     const selectableTextIdx = getSelectableTextIdx();
-    const rangeMap = (0, correlationEngine_1.getRangeMap)(lastTextSnapshot, ssmlDoc.firstElementChild);
-    const { partitionKey, partitionStart, partitionEnd } = (0, correlationEngine_1.getPartition)(rangeMap, selectableTextIdx);
+    if (!selectableTextIdx)
+        return;
+    const rangeMap = getRangeMap(lastTextSnapshot, ssmlDoc.firstElementChild);
+    const { partitionKey, partitionStart, partitionEnd } = getPartition(rangeMap, selectableTextIdx);
     console.log("partitionKey", partitionKey);
     const textNodeInXMLDoc = rangeMap[partitionKey];
     console.log("textNodeInXMLDoc", textNodeInXMLDoc);
@@ -39,39 +39,60 @@ textElt.addEventListener("keydown", (e) => {
 });
 function antecipateMutation() {
     const sel = window.getSelection();
-    let { selectableTextIdx } = (0, correlationEngine_1.correlationEngine)(textElt.textContent, textElt, {
+    if (!(sel === null || sel === void 0 ? void 0 : sel.anchorNode))
+        return;
+    let { selectableTextIdx } = correlationEngine(textElt.textContent || "", textElt, {
         tnode: sel.anchorNode,
         idx: sel.anchorOffset,
     });
-    selectableTextIdx = selectableTextIdx || textElt.textContent.length - 1;
-    const rangeMap = (0, correlationEngine_1.getRangeMap)(textElt.textContent, ssmlDoc.firstElementChild);
-    const partition = (0, correlationEngine_1.getPartition)(rangeMap, selectableTextIdx);
-    const textNodeInXMLDoc = rangeMap[partition.partitionKey];
-    targetPartition = partition;
-    targetXMLTextNode = textNodeInXMLDoc;
+    try {
+        if (textElt.textContent === null) {
+            throw new Error("No text content");
+        }
+        selectableTextIdx = selectableTextIdx || textElt.textContent.length - 1;
+        const rangeMap = getRangeMap(textElt.textContent, ssmlDoc.firstElementChild);
+        const partition = getPartition(rangeMap, selectableTextIdx);
+        const textNodeInXMLDoc = rangeMap[partition.partitionKey];
+        targetPartition = partition;
+        targetXMLTextNode = textNodeInXMLDoc;
+    }
+    catch (error) {
+        console.error(error);
+    }
 }
 function getSelectableTextIdx(charDelt = 0) {
     const sel = window.getSelection();
-    const { selectableTextIdx } = (0, correlationEngine_1.correlationEngine)(lastTextSnapshot, textElt, {
+    if (!(sel === null || sel === void 0 ? void 0 : sel.anchorNode))
+        return;
+    const { selectableTextIdx } = correlationEngine(lastTextSnapshot, textElt, {
         tnode: sel.anchorNode,
         idx: sel.anchorOffset + charDelt * -1,
     });
     return selectableTextIdx || lastTextSnapshot.length - 1;
 }
 function checkParity() {
-    console.log("parity: " + (textElt.textContent === ssmlDoc.firstElementChild.textContent));
+    var _a;
+    console.log("parity: " + (textElt.textContent === ((_a = ssmlDoc.firstElementChild) === null || _a === void 0 ? void 0 : _a.textContent)));
 }
-function mutationCallback(mutationList, observer) {
-    const mutation = mutationList[0];
-    if (mutation.type !== "characterData")
-        return;
-    const newAggText = mutation.target.parentElement.innerText;
-    const charDelt = newAggText.length - lastTextSnapshot.length;
-    const newTextNodeValue = newAggText.substring(targetPartition.partitionStart, targetPartition.partitionEnd + charDelt + 1);
-    targetXMLTextNode.textContent = newTextNodeValue;
-    lastTextSnapshot = newAggText;
-    printXMLString();
-    checkParity();
+function mutationCallback(mutationList) {
+    var _a, _b;
+    try {
+        const mutation = mutationList[0];
+        if (!mutation)
+            throw new Error("undefined mutation");
+        const newAggText = (_b = (_a = mutation === null || mutation === void 0 ? void 0 : mutation.target) === null || _a === void 0 ? void 0 : _a.parentElement) === null || _b === void 0 ? void 0 : _b.innerText;
+        if (!newAggText)
+            throw new Error("unable to find mutating text");
+        const charDelt = newAggText.length - lastTextSnapshot.length;
+        const newTextNodeValue = newAggText.substring(targetPartition.partitionStart, targetPartition.partitionEnd + charDelt + 1);
+        targetXMLTextNode.textContent = newTextNodeValue;
+        lastTextSnapshot = newAggText;
+        printXMLString();
+        checkParity();
+    }
+    catch (error) {
+        console.error(error);
+    }
 }
 const observer = new MutationObserver(mutationCallback);
 observer.observe(textElt, {

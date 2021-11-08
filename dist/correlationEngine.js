@@ -1,13 +1,8 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.checkMapFidelity = exports.getPartition = exports.getRangeMap = exports.organizeMap = exports.correlationEngine = void 0;
 function walkAndCollectRenderedTextNodes(subtree) {
     const srcList = Array.from(subtree.childNodes);
     let result = [];
     srcList.forEach((srcNode) => {
-        console.log(typeof srcNode);
-        if (srcNode.nodeType === Node.TEXT_NODE &&
-            /\S/.test(srcNode.textContent || "")) {
+        if (srcNode instanceof Text && /\S/.test(srcNode.textContent || "")) {
             result = result.concat(srcNode);
             return;
         }
@@ -18,7 +13,7 @@ function walkAndCollectRenderedTextNodes(subtree) {
     });
     return result;
 }
-function correlationEngine(referenceText, tree, editPoint = null) {
+export function correlationEngine(referenceText, tree, editPoint = null) {
     const targetTNodes = walkAndCollectRenderedTextNodes(tree);
     const returnData = {
         correlationMap: [],
@@ -26,6 +21,8 @@ function correlationEngine(referenceText, tree, editPoint = null) {
     };
     let fromIdx = 0;
     const chars = referenceText.split("");
+    if (chars.length === 0)
+        return returnData;
     try {
         for (let [i, c] of chars.entries()) {
             while (targetTNodes.length) {
@@ -51,14 +48,15 @@ function correlationEngine(referenceText, tree, editPoint = null) {
                 else {
                     if (/\s/.test(c) &&
                         fromIdx >= currTNode.textContent.length &&
-                        targetTNodes[1] &&
+                        targetTNodes[1].textContent &&
                         !targetTNodes[1].textContent
                             .replace(/[\s\n\r\t]+/, " ")
                             .startsWith(c)) {
                         returnData.correlationMap.push({
                             tnode: currTNode,
                             idx: localIdx,
-                            note: "phantom space",
+                            c: "phantom space",
+                            masterIdx: i,
                         });
                         break;
                     }
@@ -74,8 +72,15 @@ function correlationEngine(referenceText, tree, editPoint = null) {
     }
     return returnData;
 }
-exports.correlationEngine = correlationEngine;
-function organizeMap(correlationMap) {
+export function organizeMap(correlationMap) {
+    try {
+        if (!correlationMap[0]) {
+            throw new Error("tried to organize an empty CorrelationMap");
+        }
+    }
+    catch (error) {
+        console.error(error);
+    }
     let result = {};
     let currentVolume = [correlationMap[0]];
     let start = 0;
@@ -105,23 +110,31 @@ function organizeMap(correlationMap) {
     });
     return result;
 }
-exports.organizeMap = organizeMap;
-function getRangeMap(selectableText, tree) {
+export function getRangeMap(selectableText, tree) {
     const { correlationMap } = correlationEngine(selectableText, tree);
+    try {
+        if (!correlationMap[0]) {
+            throw new Error("tried to getRangeMap from an empty CorrelationMap");
+        }
+    }
+    catch (error) {
+        console.error(error);
+    }
     checkMapFidelity(selectableText, correlationMap);
     const organized = organizeMap(correlationMap);
+    const result = {};
     Object.entries(organized).forEach(([k, v]) => {
-        organized[k] = v[0].tnode;
+        result[k] = v[0].tnode;
     });
-    return organized;
+    return result;
 }
-exports.getRangeMap = getRangeMap;
-function getPartition(rangeMap, selectableTextIdx) {
+export function getPartition(rangeMap, selectableTextIdx) {
     const regex = /(?<start>\d*)-(?<end>\d*)/;
     let result = {};
     Object.keys(rangeMap).forEach((k) => {
         const { start, end } = k.match(regex).groups;
-        if (selectableTextIdx >= start && selectableTextIdx <= end) {
+        const [startInt, endInt] = [parseInt(start), parseInt(end)];
+        if (selectableTextIdx >= startInt && selectableTextIdx <= endInt) {
             result.partitionKey = k;
             result.partitionStart = parseInt(start);
             result.partitionEnd = parseInt(end);
@@ -134,8 +147,7 @@ function getPartition(rangeMap, selectableTextIdx) {
         throw new Error("partition not found");
     }
 }
-exports.getPartition = getPartition;
-function checkMapFidelity(reference, map) {
+export function checkMapFidelity(reference, map) {
     const chars = reference.split("");
     try {
         chars.forEach((c, i) => {
@@ -149,5 +161,4 @@ function checkMapFidelity(reference, map) {
         console.log(error);
     }
 }
-exports.checkMapFidelity = checkMapFidelity;
 //# sourceMappingURL=correlationEngine.js.map

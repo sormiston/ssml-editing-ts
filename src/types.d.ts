@@ -17,9 +17,9 @@ type CorrelationEngineData = {
   correlationMap: CorrelationMap;
   selectableTextIdx: number | null;
 };
-type RangeMap = {
-  [index: string]: Text;
-};
+ type RangeMap = {
+   [index: string]: Text;
+ };
 type Partition = {
   partitionKey: string;
   partitionStart: number;

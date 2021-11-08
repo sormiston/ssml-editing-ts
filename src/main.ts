@@ -1,4 +1,3 @@
-
 import {
   correlationEngine,
   getRangeMap,
@@ -39,8 +38,7 @@ let ssmlDoc: Document = parser.parseFromString(
 
 // READOUT shows how SSML doc will serialize
 function printXMLString() {
-  let ssmlDocOutput =
-    serializer.serializeToString(ssmlDoc);
+  let ssmlDocOutput = serializer.serializeToString(ssmlDoc);
   // let beautifiedXML = vkbeautify.xml(ssmlDocOutput);
   outputElt.innerText = ssmlDocOutput;
 }
@@ -49,38 +47,44 @@ console.dir(ssmlDoc);
 
 // Some important LOCAL MEMORY INITS
 let logs = false;
-let lastTextSnapshot = textElt.textContent;
+let lastTextSnapshot = textElt.innerText;
 let targetPartition: Partition;
 let targetXMLTextNode: Text;
+let mostRecentKey
 // Can we successfully map between the de-tagged user text and the XML tree ?
 
 // REGIONAL CLICK TEST
-textElt.addEventListener("click", (e) => {
-  const selectableTextIdx = getSelectableTextIdx();
-  if (!selectableTextIdx) return;
-  const rangeMap = getRangeMap(
-    lastTextSnapshot,
-    ssmlDoc.firstElementChild! as Element
-  );
-  const { partitionKey, partitionStart, partitionEnd } = getPartition(
-    rangeMap,
-    selectableTextIdx
-  );
-  console.log("partitionKey", partitionKey);
-  const textNodeInXMLDoc = rangeMap[partitionKey];
-  console.log("textNodeInXMLDoc", textNodeInXMLDoc);
-});
+// textElt.addEventListener("click", (e) => {
+//   const selectableTextIdx = getSelectableTextIdx();
+//   if (!selectableTextIdx) return;
+//   const rangeMap = getRangeMap(
+//     lastTextSnapshot,
+//     ssmlDoc.firstElementChild! as Element
+//   );
+//   const { partitionKey, partitionStart, partitionEnd } = getPartition(
+//     rangeMap,
+//     selectableTextIdx
+//   );
+//   console.log("partitionKey", partitionKey);
+//   const textNodeInXMLDoc = rangeMap[partitionKey];
+//   console.log("textNodeInXMLDoc", textNodeInXMLDoc);
+// });
 textElt.addEventListener("keydown", (e) => {
   console.log(e);
-  antecipateMutation();
+  mostRecentKey = e.code
+  const antecipation = antecipateMutation();
+  if (antecipation) {
+    [targetPartition, targetXMLTextNode] = antecipation;
+  }
 });
-//  *******************************
-function antecipateMutation() {
+//  Func antecipateMutation : KEYDOWN EVENT HANDLER
+//  grabs the "oldCharData" we are interested in by
+function antecipateMutation(): [Partition, Text] | undefined {
   // get cursor position before key input
   const sel = window.getSelection();
-  if (!sel?.anchorNode) return;
+  if (!sel?.anchorNode) return undefined;
   let { selectableTextIdx } = correlationEngine(
-    textElt.textContent || "",
+    textElt.innerText || "",
     textElt,
     {
       tnode: sel.anchorNode as Text,
@@ -92,10 +96,10 @@ function antecipateMutation() {
     if (textElt.textContent === null) {
       throw new Error("No text content");
     }
-    selectableTextIdx = selectableTextIdx || textElt.textContent.length - 1;
+    selectableTextIdx = selectableTextIdx || textElt.innerText.length - 1;
     // get corresponding tnode in xml tree
     const rangeMap = getRangeMap(
-      textElt.textContent,
+      textElt.innerText,
       ssmlDoc.firstElementChild! as Element
     );
     const partition = getPartition(rangeMap, selectableTextIdx);
@@ -104,10 +108,12 @@ function antecipateMutation() {
     // console.log("textNodeInXMLDoc");
     // console.dir(textNodeInXMLDoc);
 
-    targetPartition = partition;
-    targetXMLTextNode = textNodeInXMLDoc;
+    // targetPartition = partition;
+    // targetXMLTextNode = textNodeInXMLDoc;
+    return [partition, textNodeInXMLDoc];
   } catch (error) {
     console.error(error);
+    return undefined;
   }
 }
 // **************************
@@ -144,7 +150,8 @@ function getSelectableTextIdx(charDelt = 0) {
 
 function checkParity() {
   console.log(
-    "parity: " + (textElt.textContent === ssmlDoc.firstElementChild?.textContent)
+    "parity: " +
+      (textElt.innerText === ssmlDoc.firstElementChild?.textContent)
   );
 }
 
@@ -154,24 +161,26 @@ function mutationCallback(mutationList: Array<MutationRecord>) {
   // if (mutation.type !== "characterData") return;
   try {
     const mutation = mutationList[0];
-    if (!mutation) throw new Error("undefined mutation")
-    const newAggText = mutation?.target?.parentElement?.innerText;
-    if (!newAggText) throw new Error("unable to find mutating text")
-    
-  const charDelt = newAggText!.length - lastTextSnapshot.length;
-  const newTextNodeValue = newAggText!.substring(
-    targetPartition.partitionStart,
-    targetPartition.partitionEnd + charDelt + 1
-  );
-  targetXMLTextNode.textContent = newTextNodeValue;
-  lastTextSnapshot = newAggText;
+    if (!mutation) throw new Error("undefined mutation");
+    // const rootPara = document.querySelector(
+    //   "#fresh-plain-text"
+    // )! as HTMLParagraphElement;
+    const newAggText = textElt.innerText;
+    if (!newAggText) throw new Error("unable to find mutating text");
 
-  printXMLString();
-  checkParity();
+    const charDelt = newAggText!.length - lastTextSnapshot.length;
+    const newTextNodeValue = newAggText!.substring(
+      targetPartition.partitionStart,
+      targetPartition.partitionEnd + charDelt + 1
+    );
+    targetXMLTextNode.textContent = newTextNodeValue;
+    lastTextSnapshot = newAggText;
+
+    printXMLString();
+    checkParity();
   } catch (error) {
-    console.error(error)
+    console.error(error);
   }
-
 }
 const observer = new MutationObserver(mutationCallback);
 observer.observe(textElt, {

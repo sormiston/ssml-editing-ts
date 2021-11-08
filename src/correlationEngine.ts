@@ -28,9 +28,11 @@ export function correlationEngine(
   };
   let fromIdx = 0;
 
-  const chars = referenceText.split("");
+  const chars = referenceText.split("").filter((c) => c !== "\n");
+  // .map((c) => c.replace(/[\s\n\r\t]+/, "*"));
   if (chars.length === 0) return returnData;
-
+  console.log(chars.slice(chars.length - 5));
+  console.log(targetTNodes[targetTNodes.length - 1]);
   try {
     for (let [i, c] of chars.entries()) {
       while (targetTNodes.length) {
@@ -136,34 +138,48 @@ export function getRangeMap(selectableText: string, tree: Element) {
 
   checkMapFidelity(selectableText, correlationMap);
   const organized = organizeMap(correlationMap);
-  const result: RangeMap = {};
-  Object.entries(organized).forEach(([k, v]) => {
+  const result: Partial<RangeMap> = {};
+  Object.entries(organized).forEach(([k, v], i, arr) => {
     result[k] = v[0].tnode;
   });
-  return result;
+  return result as RangeMap;
 }
 
 export function getPartition(rangeMap: RangeMap, selectableTextIdx: number) {
   const regex = /(?<start>\d*)-(?<end>\d*)/;
+
+  let lastEnd = 0;
+  let lastKey = Object.keys(rangeMap)[0];
   let result: Partial<Partition> = {};
+  let changed = false;
+
   Object.keys(rangeMap).forEach((k) => {
     const { start, end } = k.match(regex)!.groups as { [key: string]: string };
     const [startInt, endInt] = [parseInt(start), parseInt(end)];
+    if (endInt > lastEnd) {
+      lastKey = k;
+    }
     if (selectableTextIdx >= startInt && selectableTextIdx <= endInt) {
       result.partitionKey = k;
       result.partitionStart = parseInt(start);
       result.partitionEnd = parseInt(end);
+      changed = true;
     }
   });
-  if (result.hasOwnProperty("partitionKey")) {
+  if (changed) {
     return result as Partition;
   } else {
-    throw new Error("partition not found");
+    console.warn("cursor index ahead of final partition, defaulting to final partition" + lastKey);
+    return {
+      partitionKey: lastKey,
+      partitionStart: parseInt(lastKey.match(regex)!.groups!.start),
+      partitionEnd: parseInt(lastKey.match(regex)!.groups!.end),
+    };
   }
 }
 
 export function checkMapFidelity(reference: string, map: CorrelationMap) {
-  const chars = reference.split("");
+  const chars = reference.split("").filter((c) => !/[\n\r\t]+/.test(c));
   try {
     chars.forEach((c, i) => {
       if (map[i].c !== c) {
@@ -176,7 +192,9 @@ export function checkMapFidelity(reference: string, map: CorrelationMap) {
       }
     });
     console.log("map OK");
-  } catch (error) {
-    console.log(error);
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      console.log("error message: ", error.message);
+    }
   }
 }

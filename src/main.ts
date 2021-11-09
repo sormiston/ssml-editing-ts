@@ -18,9 +18,7 @@ const OPEN_SPEAK_TAG = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/sy
 const CLOSING_SPEAK_TAG = "</speak>";
 
 // REPRESENTS DATA FROM BACKEND, TEXT WITH SOME SSML DONE
-// No anúncio, Geraldo Rabello convida a família para falar sobre o empreendimento, menos <prosody pitch="low">Luiza, que estava no Canadá.</prosody> A frase logo se 
-
-const ssml = `popularizou no <break strength="string" />Twitter e <phoneme alphabet="string">F</phoneme>`;
+const ssml = `<voice name="en-US-ChristopherNeural"><span>No anúncio, Geraldo Rabello convida a família para falar sobre o empreendimento, menos </span><prosody pitch="low">Luiza, que estava no Canadá.</prosody> A frase logo se popularizou no <break strength="string" />Twitter e <phoneme alphabet="string">F</phoneme>a</voice>`;
 
 // acebook, tornando-se rapidamente um dos assuntos mais comentados da primeira rede social.
 
@@ -197,6 +195,7 @@ function mutationCallback(mutationList: Array<MutationRecord>) {
       );
     }
 
+    console.dir(ssmlDoc.firstElementChild);
     if (newTextNodeValue.length === 0) {
       let target =
         targetXMLTextNode.parentElement!.tagName === "speak"

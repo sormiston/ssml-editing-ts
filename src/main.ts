@@ -6,6 +6,8 @@ import {
   checkMapFidelity,
 } from "./correlationEngine.js";
 
+import { cleanUp } from "./utils.js"
+
 function scrubTags(str: string) {
   str = str.toString();
   return str.replace(/<[^>]*>/g, "");
@@ -16,11 +18,12 @@ const OPEN_SPEAK_TAG = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/sy
 const CLOSING_SPEAK_TAG = "</speak>";
 
 // REPRESENTS DATA FROM BACKEND, TEXT WITH SOME SSML DONE
-const ssml = `No anúncio, Geraldo Rabello convida a família para falar sobre o empreendimento, menos <prosody pitch="low">Luiza, que estava no Canadá.</prosody> A frase logo se popularizou no <break strength="string" />Twitter e <phoneme alphabet="string">F</phoneme>a`;
+// No anúncio, Geraldo Rabello convida a família para falar sobre o empreendimento, menos <prosody pitch="low">Luiza, que estava no Canadá.</prosody> A frase logo se 
 
-// cebook, tornando-se rapidamente um dos assuntos mais comentados da primeira rede social.
+const ssml = `popularizou no <break strength="string" />Twitter e <phoneme alphabet="string">F</phoneme>`;
 
-// const ssml = `No anúncio, Geraldo Rabello convida a família para falar sobre o empreendimento, menos <prosody pitch="low">Luiza, que estava no Canadá.</prosody> A frase logo se popularizou no Twitter e Facebook, tornando-se rapidamente um dos assuntos mais comentados da primeira rede social.`;
+// acebook, tornando-se rapidamente um dos assuntos mais comentados da primeira rede social.
+
 
 const textElt = document.querySelector(
   "#fresh-plain-text"
@@ -35,7 +38,7 @@ const parser = new DOMParser();
 const serializer = new XMLSerializer();
 
 // SSML DOC is primary state object that must sync with user text manipulation
-let ssmlDoc: Document = parser.parseFromString(
+let ssmlDoc: XMLDocument = parser.parseFromString(
   OPEN_SPEAK_TAG + ssml + CLOSING_SPEAK_TAG,
   "text/xml"
 );
@@ -194,7 +197,6 @@ function mutationCallback(mutationList: Array<MutationRecord>) {
       );
     }
 
-    console.log("targetXMLTextNode ", targetXMLTextNode);
     if (newTextNodeValue.length === 0) {
       let target =
         targetXMLTextNode.parentElement!.tagName === "speak"
@@ -210,6 +212,9 @@ function mutationCallback(mutationList: Array<MutationRecord>) {
       );
     }
 
+     cleanUp(ssmlDoc)
+    // console.log("targetXMLTextNode ", targetXMLTextNode);
+    // console.log("ssmlDoc", ssmlDoc);
     lastTextSnapshot = newAggText;
 
     printXMLString();

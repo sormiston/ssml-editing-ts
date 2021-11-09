@@ -6,11 +6,22 @@ import {
   checkMapFidelity,
 } from "./correlationEngine.js";
 
-import { cleanUp } from "./utils.js"
+import { cleanUp, TAGS, SELF_CLOSING_TAGS } from "./utils.js";
 
-function scrubTags(str: string) {
-  str = str.toString();
-  return str.replace(/<[^>]*>/g, "");
+function scrubSSMLTags(str: string) {
+  // str = str.toString();
+  [...Object.values(TAGS), ...Object.values(SELF_CLOSING_TAGS)].forEach(
+    (tagName) => {
+      const regex = new RegExp(`<\/?${tagName}\\b[^>]*>`, "gm");
+      str = str.replace(regex, "");
+    }
+  );
+  return str;
+}
+
+function scrubHTMLTags(str: string) {
+  const regex = new RegExp(`<\/?span\\b[^>]*>`, "gm");
+  return str.replace(regex, "")
 }
 
 const OPEN_SPEAK_TAG = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis"
@@ -22,7 +33,6 @@ const ssml = `<voice name="en-US-ChristopherNeural"><span>No anúncio, Geraldo R
 
 // acebook, tornando-se rapidamente um dos assuntos mais comentados da primeira rede social.
 
-
 const textElt = document.querySelector(
   "#fresh-plain-text"
 )! as HTMLParagraphElement;
@@ -30,14 +40,14 @@ const outputElt = document.querySelector(
   "#generated-ssml"
 )! as HTMLParagraphElement;
 
-textElt.textContent = scrubTags(ssml);
+textElt.innerHTML = scrubSSMLTags(ssml);
 
 const parser = new DOMParser();
 const serializer = new XMLSerializer();
 
 // SSML DOC is primary state object that must sync with user text manipulation
 let ssmlDoc: XMLDocument = parser.parseFromString(
-  OPEN_SPEAK_TAG + ssml + CLOSING_SPEAK_TAG,
+  scrubHTMLTags(OPEN_SPEAK_TAG + ssml + CLOSING_SPEAK_TAG),
   "text/xml"
 );
 
@@ -205,13 +215,13 @@ function mutationCallback(mutationList: Array<MutationRecord>) {
       target.remove();
       ssmlDoc.firstElementChild?.normalize();
     } else {
-      targetXMLTextNode.textContent = newTextNodeValue;
+      targetXMLTextNode.textContent = scrubHTMLTags(newTextNodeValue);
       console.log(
         "text content length in node: " + targetXMLTextNode.textContent.length
       );
     }
 
-     cleanUp(ssmlDoc)
+    cleanUp(ssmlDoc);
     // console.log("targetXMLTextNode ", targetXMLTextNode);
     // console.log("ssmlDoc", ssmlDoc);
     lastTextSnapshot = newAggText;

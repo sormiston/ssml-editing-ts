@@ -8,7 +8,7 @@ export function cleanUp(ssml: XMLDocument) {
   });
 }
 
-const TAGS = {
+export const TAGS = {
   voice: "voice",
   expressAs: "mstts:express-as",
   lang: "lang",
@@ -26,7 +26,7 @@ const TAGS = {
   backgroundAudio: "mstts:backgroundaudio",
 };
 
-const SELF_CLOSING_TAGS = {
+export const SELF_CLOSING_TAGS = {
   break: "break",
   bookmark: "bookmark",
 };

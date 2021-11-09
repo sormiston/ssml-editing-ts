@@ -16,7 +16,11 @@ const OPEN_SPEAK_TAG = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/sy
 const CLOSING_SPEAK_TAG = "</speak>";
 
 // REPRESENTS DATA FROM BACKEND, TEXT WITH SOME SSML DONE
-const ssml = `No anúncio, Geraldo Rabello convida a família para falar sobre o empreendimento, menos <prosody pitch="low">Luiza, que estava no Canadá.</prosody> A frase logo se popularizou no Twitter e Facebook, tornando-se rapidamente um dos assuntos mais comentados da primeira rede social.`;
+const ssml = `No anúncio, Geraldo Rabello convida a família para falar sobre o empreendimento, menos <prosody pitch="low">Luiza, que estava no Canadá.</prosody> A frase logo se popularizou no <break strength="string" />Twitter e <phoneme alphabet="string">F</phoneme>a`;
+
+// cebook, tornando-se rapidamente um dos assuntos mais comentados da primeira rede social.
+
+// const ssml = `No anúncio, Geraldo Rabello convida a família para falar sobre o empreendimento, menos <prosody pitch="low">Luiza, que estava no Canadá.</prosody> A frase logo se popularizou no Twitter e Facebook, tornando-se rapidamente um dos assuntos mais comentados da primeira rede social.`;
 
 const textElt = document.querySelector(
   "#fresh-plain-text"
@@ -38,9 +42,14 @@ let ssmlDoc: Document = parser.parseFromString(
 
 // READOUT shows how SSML doc will serialize
 function printXMLString() {
-  let ssmlDocOutput = serializer.serializeToString(ssmlDoc);
-  // let beautifiedXML = vkbeautify.xml(ssmlDocOutput);
-  outputElt.innerText = ssmlDocOutput;
+  const ssmlDocOutput = serializer.serializeToString(ssmlDoc);
+  const node = (document as Document).createTextNode(ssmlDocOutput);
+  if (outputElt.firstChild) {
+    outputElt.firstChild.remove();
+  }
+  outputElt.append(node);
+  // let outputText = outputElt.firstChild as Text
+  // outputText.data = ssmlDocOutput;
 }
 printXMLString();
 console.dir(ssmlDoc);
@@ -72,14 +81,16 @@ let targetXMLTextNode: Text;
 textElt.addEventListener("keydown", (e) => {
   console.log(e);
   (<any>window).mostRecentKey = e.code;
-  const antecipation = antecipateMutation();
+  const antecipation = antecipateMutation(e.code);
   if (antecipation) {
     [targetPartition, targetXMLTextNode] = antecipation;
   }
 });
 //  Func antecipateMutation : KEYDOWN EVENT HANDLER
 //  grabs the "oldCharData" we are interested in by
-function antecipateMutation(): [Partition, Text] | undefined {
+function antecipateMutation(
+  lastKeyPress: string
+): [Partition, Text] | undefined {
   // get cursor position before key input
   const sel = window.getSelection();
   if (!sel?.anchorNode) return undefined;
@@ -96,7 +107,7 @@ function antecipateMutation(): [Partition, Text] | undefined {
     if (textElt.textContent === null) {
       throw new Error("No text content");
     }
-    selectableTextIdx = selectableTextIdx || textElt.innerText.length - 1;
+    selectableTextIdx = selectableTextIdx || textElt.innerText.length;
     // get corresponding tnode in xml tree
     const rangeMap = getRangeMap(
       textElt.innerText,
@@ -120,7 +131,7 @@ function getSelectableTextIdx(charDelt = 0) {
     tnode: sel.anchorNode as Text,
     idx: sel.anchorOffset + charDelt * -1,
   });
-  return selectableTextIdx || lastTextSnapshot.length - 1;
+  return selectableTextIdx || lastTextSnapshot.length;
 } // ************************
 
 // ****************************
@@ -143,9 +154,24 @@ function getSelectableTextIdx(charDelt = 0) {
 // ********************************
 
 function checkParity() {
-  console.log(
-    "parity: " + (textElt.innerText === ssmlDoc.firstElementChild?.textContent)
-  );
+  // normalize whitespaces
+  const whitespaceNormalizer = (char: string) => {
+    if (char.charCodeAt(0) === 160) {
+      return String.fromCharCode(32);
+    } else {
+      return char;
+    }
+  };
+  const normalizedText = textElt.innerText
+    .split("")
+    .map(whitespaceNormalizer)
+    .join("");
+  const normalizedSSMLText = ssmlDoc.firstElementChild?.textContent
+    ?.split("")
+    .map(whitespaceNormalizer)
+    .join("");
+
+  console.log("parity: " + (normalizedText === normalizedSSMLText));
 }
 
 // Can we map mutations of text between the de-tagged user text and the XML tree?
@@ -168,7 +194,22 @@ function mutationCallback(mutationList: Array<MutationRecord>) {
       );
     }
 
-    targetXMLTextNode.textContent = newTextNodeValue;
+    console.log("targetXMLTextNode ", targetXMLTextNode);
+    if (newTextNodeValue.length === 0) {
+      let target =
+        targetXMLTextNode.parentElement!.tagName === "speak"
+          ? targetXMLTextNode
+          : targetXMLTextNode.parentElement!;
+
+      target.remove();
+      ssmlDoc.firstElementChild?.normalize();
+    } else {
+      targetXMLTextNode.textContent = newTextNodeValue;
+      console.log(
+        "text content length in node: " + targetXMLTextNode.textContent.length
+      );
+    }
+
     lastTextSnapshot = newAggText;
 
     printXMLString();

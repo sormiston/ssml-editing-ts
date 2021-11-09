@@ -26,21 +26,31 @@ export function correlationEngine(
     correlationMap: [],
     selectableTextIdx: null,
   };
-  let fromIdx = 0;
 
   const chars = referenceText.split("").filter((c) => c !== "\n");
-  // .map((c) => c.replace(/[\s\n\r\t]+/, "*"));
+
   if (chars.length === 0) return returnData;
-  console.log(chars.slice(chars.length - 5));
-  console.log(targetTNodes[targetTNodes.length - 1]);
+  let fromIdx = 0;
   try {
     for (let [i, c] of chars.entries()) {
       while (targetTNodes.length) {
         let currTNode = targetTNodes[0] as Text;
         if (currTNode.textContent === null)
           throw new Error("empty textNode in correlation engine");
-        let localIdx = currTNode.textContent.indexOf(c, fromIdx);
+        // strengthening whitespace correlation
+        const targetChars = currTNode.textContent.split("").slice(fromIdx);
+        let localIdx = targetChars.findIndex((tc) => {
+          return (
+            tc === c ||
+            ((c.charCodeAt(0) === 32 || c.charCodeAt(0) === 160) &&
+              (tc.charCodeAt(0) === 32 || tc.charCodeAt(0) === 160))
+          );
+        });
+
+        // let localIdx = currTNode.textContent.indexOf(c, fromIdx);
+
         if (localIdx >= 0) {
+          localIdx = localIdx + fromIdx;
           fromIdx = localIdx + 1; // next tick's search starts only after point where this char was found
           if (
             editPoint &&
@@ -75,7 +85,7 @@ export function correlationEngine(
           //   });
           //   break;
           // }
-        
+
           targetTNodes.shift();
           fromIdx = 0;
         }
@@ -104,9 +114,12 @@ export function organizeMap(correlationMap: CorrelationMap) {
 
   function finishVolume(entry: CorrelationMapEntry, i: number, isLast = false) {
     const rangeKey = isLast ? `${start}-${i}` : `${start}-${i - 1}`;
-    if (isLast) {
-      currentVolume.push(entry);
-    }
+    // if (isLast) {
+    //   currentVolume.push(entry);
+    // }
+    // if (isLast) {
+    //   currentVolume[0].isLast = true
+    // }
     result[rangeKey] = currentVolume;
     if (!isLast) {
       currentVolume = [entry];
@@ -115,13 +128,22 @@ export function organizeMap(correlationMap: CorrelationMap) {
   }
   correlationMap.forEach((entry, i, arr) => {
     if (i === 0) return;
-    if (entry === arr[arr.length - 1]) {
-      finishVolume(entry, i, true);
-    } else if (entry.tnode === currentVolume[currentVolume.length - 1].tnode) {
+    // if (entry === arr[arr.length - 1]) {
+    //   finishVolume(entry, i, true);
+    // } else if (entry.tnode === currentVolume[currentVolume.length - 1].tnode) {
+    //   currentVolume.push(entry);
+    // } else {
+    //   finishVolume(entry, i);
+    // }
+    if (entry.tnode === currentVolume[currentVolume.length - 1].tnode) {
       currentVolume.push(entry);
     } else {
       finishVolume(entry, i);
     }
+    
+    if (entry === arr[arr.length - 1]) {
+      finishVolume(entry, i, true);
+    } 
   });
   return result;
 }
@@ -139,42 +161,59 @@ export function getRangeMap(selectableText: string, tree: Element) {
   checkMapFidelity(selectableText, correlationMap);
   const organized = organizeMap(correlationMap);
   const result: Partial<RangeMap> = {};
-  Object.entries(organized).forEach(([k, v], i, arr) => {
+  Object.entries(organized).forEach(([k, v]) => {
     result[k] = v[0].tnode;
   });
   return result as RangeMap;
 }
 
-export function getPartition(rangeMap: RangeMap, selectableTextIdx: number) {
+export function getPartition(
+  rangeMap: RangeMap,
+  selectableTextIdx: number
+) {
   const regex = /(?<start>\d*)-(?<end>\d*)/;
-
+  
   let lastEnd = 0;
   let lastKey = Object.keys(rangeMap)[0];
   let result: Partial<Partition> = {};
-  let changed = false;
+  let changedFromInit = false;
 
-  Object.keys(rangeMap).forEach((k) => {
+  console.log(rangeMap);
+  Object.keys(rangeMap).forEach((k, i, arr) => {
     const { start, end } = k.match(regex)!.groups as { [key: string]: string };
     const [startInt, endInt] = [parseInt(start), parseInt(end)];
     if (endInt > lastEnd) {
       lastKey = k;
     }
-    if (selectableTextIdx >= startInt && selectableTextIdx <= endInt) {
+    if (i > 0 && selectableTextIdx === startInt) {
+      k = arr[i - 1];
+      const { start: prevStart, end: prevEnd } = k.match(regex)!.groups as {
+        [key: string]: string;
+      };
+      result.partitionKey = k;
+      result.partitionStart = parseInt(prevStart);
+      result.partitionEnd = parseInt(prevEnd);
+      changedFromInit = true;
+    } else if (selectableTextIdx >= startInt && selectableTextIdx <= endInt) {
       result.partitionKey = k;
       result.partitionStart = parseInt(start);
       result.partitionEnd = parseInt(end);
-      changed = true;
+      changedFromInit = true;
     }
   });
-  if (changed) {
+  if (changedFromInit) {
+    console.log(lastKey)
     return result as Partition;
   } else {
-    console.warn("cursor index ahead of final partition, defaulting to final partition" + lastKey);
+    console.warn(
+      "cursor index ahead of final partition, defaulting to final partition" +
+        lastKey
+    );
     return {
       partitionKey: lastKey,
       partitionStart: parseInt(lastKey.match(regex)!.groups!.start),
       partitionEnd: parseInt(lastKey.match(regex)!.groups!.end),
-      isFinal: true
+      isFinal: true,
     } as Partition;
   }
 }
